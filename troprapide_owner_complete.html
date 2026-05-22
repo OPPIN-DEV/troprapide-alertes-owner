@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TropRapide — Espace Propriétaire</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --yellow: #FFD600; --yellow-dark: #B8960A; --yellow-dim: rgba(255,214,0,0.12);
+  --bg: #0A0A0A; --bg2: #141414; --bg3: #1C1C1C; --bg4: #242424;
+  --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+  --text: #F5F5F3; --text2: #888; --text3: #444;
+  --green: #22C55E; --green-dim: rgba(34,197,94,0.12);
+  --blue: #60A5FA; --blue-dim: rgba(96,165,250,0.12);
+  --orange: #FB923C; --orange-dim: rgba(251,146,60,0.1);
+  --red: #F87171;
+  --radius: 12px; --radius-sm: 8px; --radius-pill: 999px;
+  font-family: 'Syne', sans-serif;
+}
+html, body { background: var(--bg); color: var(--text); height: 100%; overflow: hidden; }
+
+/* ── APP SHELL ── */
+.app { display: flex; flex-direction: column; height: 100vh; }
+
+/* ── TOPBAR ── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 1.5rem; height: 56px; background: var(--bg2);
+  border-bottom: 1px solid var(--border); flex-shrink: 0; gap: 12px;
+}
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.logo-mark {
+  width: 36px; height: 36px; background: var(--yellow);
+  border-radius: 7px; display: flex; align-items: center;
+  justify-content: center; font-size: 17px; font-weight: 800; color: #000;
+}
+.logo-label { font-size: 15px; font-weight: 700; color: var(--text); }
+.logo-sub { font-size: 10px; color: var(--text2); }
+
+.moto-chip {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius-pill); padding: 6px 14px;
+  font-size: 12px; font-weight: 600;
+}
+.plate { color: var(--yellow); font-family: 'DM Mono', monospace; }
+
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.live-badge {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--green-dim); color: var(--green);
+  font-size: 10px; font-weight: 700; padding: 5px 10px;
+  border-radius: var(--radius-pill); text-transform: uppercase; letter-spacing: 0.5px;
+  border: 1px solid rgba(34,197,94,0.2);
+}
+.live-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 1.6s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
+.clock { font-size: 11px; color: var(--text2); font-family: 'DM Mono', monospace; }
+
+/* ── NAV TABS ── */
+.nav-tabs {
+  display: flex; align-items: stretch;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  padding: 0 1.5rem; flex-shrink: 0; gap: 4px;
+}
+.nav-tab {
+  display: flex; align-items: center; gap: 7px;
+  padding: 0 16px; height: 44px;
+  font-size: 13px; font-weight: 600; color: var(--text2);
+  cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all 0.2s; white-space: nowrap;
+  background: none; border-top: none; border-left: none; border-right: none;
+  font-family: 'Syne', sans-serif;
+}
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active { color: var(--yellow); border-bottom-color: var(--yellow); }
+.nav-tab .tab-icon { font-size: 15px; }
+
+/* ── PAGES ── */
+.page { display: none; flex: 1; overflow: hidden; }
+.page.active { display: flex; flex-direction: column; }
+
+/* ── PAGE DASHBOARD ── */
+.dash-scroll { flex: 1; overflow-y: auto; padding: 1.5rem; }
+.dash-scroll::-webkit-scrollbar { width: 4px; }
+.dash-scroll::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 2px; }
+
+@keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+.fade-in   { animation: fadeUp 0.4s ease both; }
+.fi1 { animation-delay: 0.04s; }
+.fi2 { animation-delay: 0.10s; }
+.fi3 { animation-delay: 0.16s; }
+.fi4 { animation-delay: 0.22s; }
+.fi5 { animation-delay: 0.28s; }
+.fi6 { animation-delay: 0.34s; }
+
+/* MOTO CARD */
+.moto-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.1rem 1.4rem;
+  margin-bottom: 1.25rem; display: flex; align-items: center; gap: 16px;
+  position: relative; overflow: hidden;
+}
+.moto-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background: linear-gradient(90deg, transparent, var(--yellow), transparent);
+}
+.moto-icon {
+  width: 52px; height: 52px; background: var(--yellow-dim);
+  border: 1px solid rgba(255,214,0,0.2);
+  border-radius: var(--radius-sm); display: flex;
+  align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0;
+}
+.moto-info { flex: 1; }
+.moto-name { font-size: 16px; font-weight: 700; margin-bottom: 3px; }
+.moto-meta { font-size: 12px; color: var(--text2); }
+.moto-meta em { color: var(--text3); margin: 0 5px; font-style: normal; }
+.status-pill {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 5px 12px; border-radius: var(--radius-pill);
+}
+.s-active { background: var(--green-dim); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+
+/* METRICS */
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; margin-bottom: 1.25rem; }
+.metric {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1rem 1.1rem;
+  transition: border-color 0.2s, transform 0.2s; cursor: default;
+}
+.metric:hover { border-color: var(--border2); transform: translateY(-2px); }
+.m-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text2); margin-bottom: 9px; display: flex; align-items: center; gap: 5px;
+}
+.m-dot { width: 5px; height: 5px; border-radius: 50%; }
+.m-val { font-size: 24px; font-weight: 800; font-family: 'DM Mono', monospace; line-height: 1; margin-bottom: 5px; }
+.m-sub { font-size: 11px; color: var(--text2); }
+.m-trend { font-size: 11px; margin-top: 5px; }
+.t-up { color: var(--green); } .t-nt { color: var(--text3); }
+.vy { color: var(--yellow); } .vg { color: var(--green); } .vb { color: var(--blue); } .vw { color: var(--text); }
+
+/* SECTION TITLE */
+.stitle {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--text3); margin: 1.5rem 0 0.7rem;
+  display: flex; align-items: center; gap: 8px;
+}
+.stitle::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* CHART CARD */
+.chart-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.2rem 1.4rem; margin-bottom: 1.25rem;
+}
+.chart-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px; }
+.chart-title { font-size: 14px; font-weight: 700; }
+.chart-avg { font-size: 11px; color: var(--text2); }
+.chart-avg span { color: var(--yellow); font-family: 'DM Mono', monospace; font-weight: 600; }
+.ptabs { display: flex; gap: 4px; }
+.ptab {
+  font-size: 11px; padding: 4px 11px; border-radius: var(--radius-pill);
+  border: 1px solid var(--border); background: transparent; color: var(--text2);
+  cursor: pointer; font-family: 'Syne', sans-serif; font-weight: 600; transition: all 0.2s;
+}
+.ptab.active { background: var(--yellow); color: #000; border-color: var(--yellow); }
+.chart-legend { display: flex; gap: 18px; margin-top: 10px; font-size: 11px; color: var(--text2); }
+.chart-legend span { display: flex; align-items: center; gap: 5px; }
+.leg-sq { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+/* VERSEMENTS */
+.v-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 1.25rem; }
+.v-head {
+  display: grid; grid-template-columns: 80px 1fr 115px 80px;
+  gap: 12px; padding: 9px 1.4rem;
+  background: var(--bg3); border-bottom: 1px solid var(--border);
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3);
+}
+.v-row {
+  display: grid; grid-template-columns: 80px 1fr 115px 80px;
+  gap: 12px; padding: 13px 1.4rem;
+  border-bottom: 1px solid var(--border); align-items: center;
+  transition: background 0.15s;
+}
+.v-row:last-child { border-bottom: none; }
+.v-row:hover { background: var(--bg3); }
+.v-wk { font-size: 12px; font-weight: 600; } .v-dt { font-size: 10px; color: var(--text2); margin-top: 2px; }
+.v-bar-wrap { display: flex; align-items: center; gap: 8px; }
+.v-bar-track { flex: 1; height: 4px; background: var(--bg4); border-radius: 2px; overflow: hidden; }
+.v-bar-fill { height: 100%; background: var(--yellow); border-radius: 2px; transition: width 0.8s ease; }
+.v-pct { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; min-width: 28px; }
+.v-amt { font-size: 13px; font-weight: 600; font-family: 'DM Mono', monospace; text-align: right; }
+.v-amt.dim { color: var(--text3); }
+.vbadge { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 3px 8px; border-radius: var(--radius-pill); text-align: center; }
+.vb-paid { background: var(--green-dim); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+.vb-pend { background: var(--orange-dim); color: var(--orange); border: 1px solid rgba(251,146,60,0.2); }
+
+/* TWO-COL */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1.25rem; }
+@media(max-width:620px){ .two-col{ grid-template-columns:1fr; } }
+
+/* COND CARD */
+.cond-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.2rem 1.4rem; }
+.cond-hd { display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; }
+.avatar { width: 46px; height: 46px; border-radius: 50%; background: var(--yellow); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; color: #000; flex-shrink: 0; }
+.cond-nm { font-size: 14px; font-weight: 700; } .cond-rl { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.stars { color: var(--yellow); font-size: 12px; margin-top: 2px; }
+.cond-rows { display: flex; flex-direction: column; gap: 7px; }
+.cond-row { display: flex; justify-content: space-between; font-size: 12px; }
+.cond-row .lbl { color: var(--text2); } .cond-row .val { font-weight: 600; font-family: 'DM Mono', monospace; }
+
+/* RECAP CARD */
+.recap-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.2rem 1.4rem; }
+.recap-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.recap-row:last-child { border-bottom: none; }
+.recap-row .lbl { color: var(--text2); } .recap-row .val { font-weight: 600; font-family: 'DM Mono', monospace; }
+.recap-total { display: flex; justify-content: space-between; padding: 12px 0 0; font-size: 15px; font-weight: 800; }
+.recap-total .tv { color: var(--yellow); font-family: 'DM Mono', monospace; }
+
+/* CTA */
+.cta-bar { display: flex; gap: 10px; margin-top: 1.5rem; flex-wrap: wrap; }
+.btn-primary {
+  flex: 1; padding: 13px 20px; background: var(--yellow); color: #000;
+  border: none; border-radius: var(--radius-sm); font-family: 'Syne', sans-serif;
+  font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+}
+.btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+.btn-secondary {
+  padding: 13px 20px; background: transparent; color: var(--text2);
+  border: 1px solid var(--border2); border-radius: var(--radius-sm);
+  font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s;
+}
+.btn-secondary:hover { border-color: var(--text2); color: var(--text); }
+
+/* FOOTER */
+.dash-footer { padding: 1.5rem 0 0.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text3); flex-wrap: wrap; gap: 4px; }
+.dash-footer strong { color: var(--yellow); }
+
+/* ── PAGE TRACKING ── */
+.tracking-page { flex: 1; display: none; overflow: hidden; }
+.tracking-page.active { display: flex; }
+
+.track-sidebar {
+  width: 300px; flex-shrink: 0; background: var(--bg2);
+  border-right: 1px solid var(--border);
+  overflow-y: auto; display: flex; flex-direction: column;
+}
+.track-sidebar::-webkit-scrollbar { width: 3px; }
+.track-sidebar::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 2px; }
+
+.ts-section { padding: 0.9rem 1.1rem; border-bottom: 1px solid var(--border); }
+.ts-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text3); margin-bottom: 8px; }
+
+/* SPEED */
+.speed-wrap { display: flex; flex-direction: column; align-items: center; padding: 0.5rem 0; }
+.speed-num { font-size: 48px; font-weight: 800; font-family: 'DM Mono', monospace; color: var(--yellow); line-height: 1; }
+.speed-unit { font-size: 11px; color: var(--text2); margin-top: 3px; }
+.speed-bar-wrap { width: 100%; height: 5px; background: var(--bg4); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+.speed-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg,#22C55E,#FFD600,#FB923C); transition: width 1s ease; }
+
+/* STATUS */
+.stat-card { background: var(--bg3); border-radius: var(--radius-sm); padding: 0.9rem; display: flex; flex-direction: column; gap: 8px; }
+.sc-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+.sc-lbl { color: var(--text2); display: flex; align-items: center; gap: 5px; }
+.sc-dot { width: 6px; height: 6px; border-radius: 50%; }
+.sc-val { font-weight: 600; font-family: 'DM Mono', monospace; }
+
+/* POS */
+.pos-card { background: var(--bg3); border-radius: var(--radius-sm); padding: 0.85rem; font-size: 12px; }
+.pos-coords { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--blue); margin-bottom: 5px; }
+.pos-addr strong { color: var(--text); } .pos-addr { color: var(--text2); line-height: 1.5; }
+.pos-time { font-size: 10px; color: var(--text3); margin-top: 5px; }
+
+/* COURSE EN COURS */
+.course-card { background: var(--bg3); border-radius: var(--radius-sm); padding: 0.85rem; position: relative; overflow: hidden; }
+.course-card::before { content:''; position:absolute; top:0; left:0; width:3px; height:100%; background:var(--yellow); }
+.course-status { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--yellow); margin-bottom: 6px; }
+.course-route { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.course-meta { font-size: 11px; color: var(--text2); display: flex; flex-direction: column; gap: 4px; }
+
+/* MINI STATS */
+.mini-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.mini-stat { background: var(--bg3); border-radius: var(--radius-sm); padding: 9px 6px; text-align: center; }
+.ms-val { font-size: 16px; font-weight: 700; font-family: 'DM Mono', monospace; }
+.ms-lbl { font-size: 9px; color: var(--text2); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.3px; }
+
+/* TIMELINE */
+.timeline { display: flex; flex-direction: column; }
+.t-item { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.t-item:last-child { border-bottom: none; }
+.t-left { display: flex; flex-direction: column; align-items: center; width: 20px; flex-shrink: 0; }
+.t-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+.t-line { flex: 1; width: 1px; background: var(--border); margin: 3px 0; }
+.t-content { flex: 1; }
+.t-title { font-size: 12px; font-weight: 600; color: var(--text); }
+.t-sub { font-size: 11px; color: var(--text2); margin-top: 1px; }
+.t-time { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; margin-top: 1px; }
+
+/* MAP */
+.map-wrap { flex: 1; position: relative; }
+#map { width: 100%; height: 100%; }
+.leaflet-container { background: #1a1a1a !important; }
+.leaflet-tile { filter: brightness(0.45) saturate(0.35) hue-rotate(185deg); }
+.leaflet-control-zoom a { background: #1c1c1c !important; color: #888 !important; border-color: rgba(255,255,255,0.1) !important; }
+.leaflet-popup-content-wrapper { background: #141414; color: #f5f5f3; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); }
+.leaflet-popup-tip { background: #141414; }
+.map-controls { position: absolute; top: 1rem; right: 1rem; z-index: 1000; display: flex; flex-direction: column; gap: 6px; }
+.map-btn {
+  width: 34px; height: 34px;
+  background: rgba(10,10,10,0.92); backdrop-filter: blur(6px);
+  border: 1px solid var(--border2); border-radius: var(--radius-sm);
+  color: var(--text2); font-size: 15px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+}
+.map-btn:hover { border-color: var(--yellow); color: var(--yellow); }
+.map-btn.active { background: var(--yellow); color: #000; border-color: var(--yellow); }
+.map-overlay { position: absolute; bottom: 1.25rem; left: 1.25rem; z-index: 1000; display: flex; flex-direction: column; gap: 6px; }
+.overlay-card {
+  background: rgba(10,10,10,0.92); backdrop-filter: blur(6px);
+  border: 1px solid var(--border2); border-radius: var(--radius-sm);
+  padding: 9px 13px; font-size: 12px;
+}
+.ov-lbl { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
+.ov-val { font-size: 13px; font-weight: 700; color: var(--text); }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; top: 4.5rem; right: 1.25rem; z-index: 9999;
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); padding: 11px 15px;
+  transform: translateX(260px); transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+  max-width: 230px;
+}
+.toast.show { transform: translateX(0); }
+.toast-title { font-size: 12px; font-weight: 700; color: var(--green); margin-bottom: 2px; }
+.toast-msg { font-size: 11px; color: var(--text2); }
+
+/* ── RESPONSIVE ── */
+@media(max-width:700px){
+  .topbar { padding: 0 1rem; }
+  .moto-chip { display: none; }
+  .track-sidebar { width: 100%; height: 200px; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  .tracking-page.active { flex-direction: column; }
+  .ts-section { min-width: 240px; border-right: 1px solid var(--border); border-bottom: none; }
+  .nav-tab { padding: 0 10px; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── TOPBAR ── -->
+  <div class="topbar">
+    <a class="logo" href="#">
+      <div class="logo-mark">TR</div>
+      <div>
+        <div class="logo-label">TropRapide</div>
+        <div class="logo-sub">Espace Propriétaire</div>
+      </div>
+    </a>
+    <div class="moto-chip">🏍️ <span class="plate">CI-452-AK</span> · Honda CG 150</div>
+    <div class="topbar-right">
+      <div class="live-badge"><div class="live-dot"></div>En direct</div>
+      <div class="clock" id="topClock">--:--:--</div>
+    </div>
+  </div>
+
+  <!-- ── NAV TABS ── -->
+  <div class="nav-tabs">
+    <button class="nav-tab active" data-tab="dashboard" onclick="switchTab('dashboard', this)">
+      <span class="tab-icon">📊</span> Tableau de bord
+    </button>
+    <button class="nav-tab" data-tab="tracking" onclick="switchTab('tracking', this)">
+      <span class="tab-icon">📍</span> Suivi GPS
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════
+       PAGE 1 — DASHBOARD
+  ══════════════════════════════════ -->
+  <div class="page active" id="page-dashboard">
+    <div class="dash-scroll">
+
+      <!-- MOTO CARD -->
+      <div class="moto-card fade-in fi1">
+        <div class="moto-icon">🏍️</div>
+        <div class="moto-info">
+          <div class="moto-name">Honda CG 150 — <span style="color:var(--yellow)">CI-452-AK</span></div>
+          <div class="moto-meta">
+            Prise en charge : 05 mai 2026
+            <em>·</em>Zone A — Plateau / Treichville
+            <em>·</em>Contrat 6 mois
+          </div>
+        </div>
+        <span class="status-pill s-active">Active</span>
+      </div>
+
+      <!-- METRICS -->
+      <div class="metrics fade-in fi2">
+        <div class="metric">
+          <div class="m-label"><div class="m-dot" style="background:var(--blue)"></div>CA cette semaine</div>
+          <div class="m-val vb">87 500</div>
+          <div class="m-sub">FCFA · 23 courses</div>
+          <div class="m-trend t-up">↑ +12% vs sem. passée</div>
+        </div>
+        <div class="metric">
+          <div class="m-label"><div class="m-dot" style="background:var(--green)"></div>Votre ristourne</div>
+          <div class="m-val vg">24 500</div>
+          <div class="m-sub">FCFA · 28% du CA net</div>
+          <div class="m-trend t-nt">Versement ven. 30 mai</div>
+        </div>
+        <div class="metric">
+          <div class="m-label"><div class="m-dot" style="background:var(--yellow)"></div>Total perçu</div>
+          <div class="m-val vy">89 600</div>
+          <div class="m-sub">FCFA depuis le 05 mai</div>
+          <div class="m-trend t-up">4 versements effectués</div>
+        </div>
+        <div class="metric">
+          <div class="m-label"><div class="m-dot" style="background:var(--text2)"></div>Taux d'activité</div>
+          <div class="m-val vw">91%</div>
+          <div class="m-sub">6,4 jours / 7 cette sem.</div>
+          <div class="m-trend t-up">↑ Excellent</div>
+        </div>
+      </div>
+
+      <!-- CHART -->
+      <div class="stitle fade-in fi3">Évolution des ristournes</div>
+      <div class="chart-card fade-in fi3">
+        <div class="chart-hd">
+          <div>
+            <div class="chart-title">Ristourne hebdomadaire (FCFA)</div>
+            <div class="chart-avg">Moyenne : <span id="avgDisplay">21 350</span> FCFA / semaine</div>
+          </div>
+          <div class="ptabs">
+            <button class="ptab active" data-p="6">6 sem.</button>
+            <button class="ptab" data-p="12">12 sem.</button>
+          </div>
+        </div>
+        <div style="position:relative;width:100%;height:200px;">
+          <canvas id="ristourneChart" role="img" aria-label="Ristourne hebdomadaire">Données ristourne sur 6 semaines.</canvas>
+        </div>
+        <div class="chart-legend">
+          <span><span class="leg-sq" style="background:var(--yellow)"></span>Ristourne versée</span>
+          <span><span class="leg-sq" style="background:var(--text3);height:2px;margin-top:4px;"></span>Moyenne</span>
+        </div>
+      </div>
+
+      <!-- VERSEMENTS -->
+      <div class="stitle fade-in fi4">Historique des versements</div>
+      <div class="v-card fade-in fi4">
+        <div class="v-head">
+          <div>Semaine</div><div>Progression</div>
+          <div style="text-align:right">Montant</div><div>Statut</div>
+        </div>
+        <div id="versementsList"></div>
+      </div>
+
+      <!-- TWO-COL -->
+      <div class="two-col fade-in fi5">
+        <div>
+          <div class="stitle">Conducteur assigné</div>
+          <div class="cond-card">
+            <div class="cond-hd">
+              <div class="avatar">KD</div>
+              <div>
+                <div class="cond-nm">Kodjo D.</div>
+                <div class="cond-rl">Livreur certifié TropRapide</div>
+                <div class="stars">★★★★★</div>
+              </div>
+            </div>
+            <div class="cond-rows">
+              <div class="cond-row"><span class="lbl">Note client</span><span class="val vy">4.8 / 5</span></div>
+              <div class="cond-row"><span class="lbl">Ancienneté</span><span class="val">3 ans</span></div>
+              <div class="cond-row"><span class="lbl">Zone</span><span class="val">Plateau / Treichville</span></div>
+              <div class="cond-row"><span class="lbl">Livraisons ce mois</span><span class="val vg">89</span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="stitle">Récap financier — mai 2026</div>
+          <div class="recap-card">
+            <div class="recap-row"><span class="lbl">CA brut généré</span><span class="val vb">312 000 F</span></div>
+            <div class="recap-row"><span class="lbl">Frais méca pris en charge</span><span class="val" style="color:var(--red)">— 18 500 F</span></div>
+            <div class="recap-row"><span class="lbl">Carburant / opérations</span><span class="val" style="color:var(--text3)">— 42 000 F</span></div>
+            <div class="recap-row"><span class="lbl">Marge TropRapide</span><span class="val vg">165 700 F</span></div>
+            <div class="recap-total"><span>Votre ristourne versée</span><span class="tv">89 600 F</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="cta-bar fade-in fi6">
+        <button class="btn-primary" onclick="showToast('📄 Rapport généré','Téléchargement en cours...')">📄 Rapport mensuel</button>
+        <button class="btn-secondary" onclick="switchTab('tracking', document.querySelector('[data-tab=tracking]'))">📍 Voir le GPS en direct</button>
+        <button class="btn-secondary">💬 Contacter TropRapide</button>
+      </div>
+
+      <div class="dash-footer">
+        <span><strong>Trop</strong>Rapide · Espace Propriétaire · troprapide.com/owner</span>
+        <span id="footDate"></span>
+      </div>
+
+    </div>
+  </div><!-- /page-dashboard -->
+
+  <!-- ══════════════════════════════════
+       PAGE 2 — TRACKING GPS
+  ══════════════════════════════════ -->
+  <div class="page" id="page-tracking">
+    <div class="track-sidebar">
+
+      <!-- VITESSE -->
+      <div class="ts-section">
+        <div class="ts-label">Vitesse actuelle</div>
+        <div class="speed-wrap">
+          <div class="speed-num" id="speedNum">34</div>
+          <div class="speed-unit">km/h</div>
+          <div class="speed-bar-wrap">
+            <div class="speed-bar" id="speedBar" style="width:28%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STATUS -->
+      <div class="ts-section">
+        <div class="ts-label">État du véhicule</div>
+        <div class="stat-card">
+          <div class="sc-row">
+            <span class="sc-lbl"><span class="sc-dot" style="background:var(--green)"></span>Statut</span>
+            <span class="sc-val vg">En course</span>
+          </div>
+          <div class="sc-row">
+            <span class="sc-lbl">Distance today</span>
+            <span class="sc-val vb" id="distVal">42.3 km</span>
+          </div>
+          <div class="sc-row">
+            <span class="sc-lbl">Courses today</span>
+            <span class="sc-val vy">6 / 9</span>
+          </div>
+          <div class="sc-row">
+            <span class="sc-lbl">Conducteur</span>
+            <span class="sc-val">Kodjo D.</span>
+          </div>
+          <div class="sc-row">
+            <span class="sc-lbl">Signal GPS</span>
+            <span class="sc-val vg">Fort ████</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- POSITION -->
+      <div class="ts-section">
+        <div class="ts-label">Position actuelle</div>
+        <div class="pos-card">
+          <div class="pos-coords" id="coordsDisplay">5.3417°N, 4.0167°W</div>
+          <div class="pos-addr">
+            <strong id="streetAddress">Av. Général de Gaulle</strong><br>
+            <span>Plateau, Abidjan</span>
+          </div>
+          <div class="pos-time" id="posTime">Mis à jour il y a 2 sec.</div>
+        </div>
+      </div>
+
+      <!-- COURSE EN COURS -->
+      <div class="ts-section">
+        <div class="ts-label">Course en cours</div>
+        <div class="course-card">
+          <div class="course-status">🟡 En livraison</div>
+          <div class="course-route">Plateau → Cocody Riviera</div>
+          <div class="course-meta">
+            <span>📦 Colis alimentaire · 2.1 kg</span>
+            <span>⏱️ ETA : <strong style="color:var(--yellow)" id="etaSide">12 min</strong></span>
+            <span>💰 Tarif : <strong style="color:var(--green)">2 500 FCFA</strong></span>
+            <span>📍 Dist. restante : <span id="distRest">4.2 km</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- MINI STATS -->
+      <div class="ts-section">
+        <div class="ts-label">Stats du jour</div>
+        <div class="mini-stats">
+          <div class="mini-stat"><div class="ms-val vy">18 500</div><div class="ms-lbl">CA (F)</div></div>
+          <div class="mini-stat"><div class="ms-val vg">5 180</div><div class="ms-lbl">Ristourne</div></div>
+          <div class="mini-stat"><div class="ms-val vb">6h 42</div><div class="ms-lbl">Actif</div></div>
+        </div>
+      </div>
+
+      <!-- TIMELINE -->
+      <div class="ts-section">
+        <div class="ts-label">Activité récente</div>
+        <div class="timeline">
+          <div class="t-item">
+            <div class="t-left"><div class="t-dot" style="background:var(--yellow)"></div><div class="t-line"></div></div>
+            <div class="t-content"><div class="t-title">Course démarrée</div><div class="t-sub">Plateau → Cocody Riviera</div><div class="t-time">14:32</div></div>
+          </div>
+          <div class="t-item">
+            <div class="t-left"><div class="t-dot" style="background:var(--green)"></div><div class="t-line"></div></div>
+            <div class="t-content"><div class="t-title">Livraison confirmée</div><div class="t-sub">Marcory Zone 4 · 2 500 FCFA</div><div class="t-time">14:08</div></div>
+          </div>
+          <div class="t-item">
+            <div class="t-left"><div class="t-dot" style="background:var(--green)"></div><div class="t-line"></div></div>
+            <div class="t-content"><div class="t-title">Livraison confirmée</div><div class="t-sub">Treichville · 1 800 FCFA</div><div class="t-time">13:41</div></div>
+          </div>
+          <div class="t-item">
+            <div class="t-left"><div class="t-dot" style="background:var(--blue)"></div><div class="t-line"></div></div>
+            <div class="t-content"><div class="t-title">Pause · 18 min</div><div class="t-sub">Arrêt Adjamé centre</div><div class="t-time">13:05</div></div>
+          </div>
+          <div class="t-item">
+            <div class="t-left"><div class="t-dot" style="background:var(--text2)"></div></div>
+            <div class="t-content"><div class="t-title">Prise de service</div><div class="t-sub">Départ Treichville base</div><div class="t-time">08:00</div></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /track-sidebar -->
+
+    <!-- MAP -->
+    <div class="map-wrap">
+      <div id="map"></div>
+      <div class="map-controls">
+        <button class="map-btn active" id="btnFollow" title="Centrer" onclick="toggleFollow()">🎯</button>
+        <button class="map-btn" id="btnRoute" title="Itinéraire" onclick="toggleRoute()">🗺️</button>
+      </div>
+      <div class="map-overlay">
+        <div class="overlay-card">
+          <div class="ov-lbl">Destination</div>
+          <div class="ov-val">Cocody Riviera 3</div>
+        </div>
+        <div class="overlay-card">
+          <div class="ov-lbl">Arrivée estimée</div>
+          <div class="ov-val" id="etaDisplay">14:44</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /page-tracking -->
+
+</div><!-- /app -->
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <div class="toast-title" id="toastTitle">Notification</div>
+  <div class="toast-msg" id="toastMsg">—</div>
+</div>
+
+<script>
+/* ══════════════════════════════
+   UTILS
+══════════════════════════════ */
+function showToast(title, msg) {
+  document.getElementById('toastTitle').textContent = title;
+  document.getElementById('toastMsg').textContent = msg;
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// Clock
+setInterval(() => {
+  const n = new Date();
+  document.getElementById('topClock').textContent =
+    String(n.getHours()).padStart(2,'0') + ':' +
+    String(n.getMinutes()).padStart(2,'0') + ':' +
+    String(n.getSeconds()).padStart(2,'0');
+}, 1000);
+
+// Footer date
+const opts = { weekday:'long', day:'numeric', month:'long', year:'numeric' };
+document.getElementById('footDate').textContent = new Date().toLocaleDateString('fr-FR', opts);
+
+/* ══════════════════════════════
+   TAB SWITCHING
+══════════════════════════════ */
+let mapInitialized = false;
+
+function switchTab(tabId, btn) {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => { p.classList.remove('active'); p.style.display = 'none'; });
+  btn.classList.add('active');
+  const page = document.getElementById('page-' + tabId);
+  page.style.display = 'flex';
+  page.classList.add('active');
+
+  if (tabId === 'tracking' && !mapInitialized) {
+    setTimeout(initMap, 80);
+    mapInitialized = true;
+  }
+}
+
+// Init page display
+document.getElementById('page-dashboard').style.display = 'flex';
+document.getElementById('page-tracking').style.display = 'none';
+
+/* ══════════════════════════════
+   DASHBOARD — VERSEMENTS
+══════════════════════════════ */
+const versements = [
+  { sem:'Sem. 23', date:'Vendredi 30 mai 2026', montant:0, pct:0, statut:'pending' },
+  { sem:'Sem. 22', date:'21 mai 2026', montant:24500, pct:100, statut:'paid' },
+  { sem:'Sem. 21', date:'14 mai 2026', montant:22100, pct:90, statut:'paid' },
+  { sem:'Sem. 20', date:'07 mai 2026', montant:23800, pct:97, statut:'paid' },
+  { sem:'Sem. 19', date:'30 avr. 2026', montant:19500, pct:80, statut:'paid' },
+  { sem:'Sem. 18', date:'23 avr. 2026', montant:21000, pct:86, statut:'paid' },
+];
+
+const vList = document.getElementById('versementsList');
+versements.forEach(v => {
+  const row = document.createElement('div');
+  row.className = 'v-row';
+  row.innerHTML = `
+    <div><div class="v-wk">${v.sem}</div><div class="v-dt">${v.date}</div></div>
+    <div class="v-bar-wrap">
+      <div class="v-bar-track"><div class="v-bar-fill" data-target="${v.pct}" style="width:0%"></div></div>
+      <span class="v-pct">${v.pct}%</span>
+    </div>
+    <div class="v-amt ${v.statut==='pending'?'dim':''}">${v.montant>0?v.montant.toLocaleString('fr-CI')+' F':'—'}</div>
+    <div class="vbadge ${v.statut==='paid'?'vb-paid':'vb-pend'}">${v.statut==='paid'?'Versé':'Attente'}</div>
+  `;
+  vList.appendChild(row);
+});
+
+setTimeout(() => {
+  document.querySelectorAll('.v-bar-fill').forEach(b => { b.style.width = b.dataset.target + '%'; });
+}, 400);
+
+/* ══════════════════════════════
+   DASHBOARD — CHART
+══════════════════════════════ */
+const d6  = { labels:['Sem.17','Sem.18','Sem.19','Sem.20','Sem.21','Sem.22'], vals:[18200,21000,19500,23800,22100,24500] };
+const d12 = { labels:['Sem.11','Sem.12','Sem.13','Sem.14','Sem.15','Sem.16','Sem.17','Sem.18','Sem.19','Sem.20','Sem.21','Sem.22'], vals:[14500,16200,15800,17100,19000,17800,18200,21000,19500,23800,22100,24500] };
+const avg = arr => Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+document.getElementById('avgDisplay').textContent = avg(d6.vals).toLocaleString('fr-CI');
+
+const rChart = new Chart(document.getElementById('ristourneChart'), {
+  type:'bar',
+  data:{
+    labels: d6.labels,
+    datasets:[
+      { label:'Ristourne', data:d6.vals, backgroundColor:'rgba(255,214,0,0.85)', borderRadius:5, borderSkipped:false, order:2 },
+      { label:'Moyenne', data:Array(6).fill(avg(d6.vals)), type:'line', borderColor:'rgba(255,255,255,0.18)', borderWidth:1.5, borderDash:[6,4], pointRadius:0, tension:0, order:1, fill:false }
+    ]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    animation:{ duration:600, easing:'easeInOutQuart' },
+    plugins:{ legend:{display:false}, tooltip:{ backgroundColor:'rgba(14,14,14,0.96)', borderColor:'rgba(255,255,255,0.08)', borderWidth:1, titleColor:'#888', bodyColor:'#f5f5f3', padding:10, callbacks:{ label: c=>'  '+c.parsed.y.toLocaleString('fr-CI')+' FCFA' } } },
+    scales:{
+      x:{ ticks:{color:'#555',font:{size:10,family:'DM Mono'}}, grid:{display:false}, border:{display:false} },
+      y:{ ticks:{color:'#555',font:{size:10,family:'DM Mono'},callback:v=>(v/1000).toFixed(0)+'k'}, grid:{color:'rgba(255,255,255,0.04)'}, border:{display:false}, min:0 }
+    }
+  }
+});
+
+document.querySelectorAll('.ptab').forEach(tab => {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
+    this.classList.add('active');
+    const d = this.dataset.p==='6' ? d6 : d12;
+    const a = avg(d.vals);
+    rChart.data.labels = d.labels;
+    rChart.data.datasets[0].data = d.vals;
+    rChart.data.datasets[1].data = Array(d.labels.length).fill(a);
+    rChart.update();
+    document.getElementById('avgDisplay').textContent = a.toLocaleString('fr-CI');
+  });
+});
+
+/* ══════════════════════════════
+   TRACKING — MAP & GPS SIM
+══════════════════════════════ */
+const routePoints = [
+  [5.2912,-4.0167],[5.2980,-4.0200],[5.3050,-4.0230],[5.3120,-4.0210],
+  [5.3200,-4.0180],[5.3280,-4.0150],[5.3350,-4.0120],[5.3417,-4.0167],
+  [5.3460,-4.0100],[5.3520,-4.0040],[5.3590,-3.9980],[5.3650,-3.9900],
+  [5.3700,-3.9820],[5.3750,-3.9750],[5.3800,-3.9700],[5.3840,-3.9640],
+];
+const zoneNames = [
+  'Base Treichville','Treichville Nord','Av. du Général de Gaulle','Pont HKB',
+  'Zone du Plateau','Av. Noguès','Rue du Commerce','Plateau Centre',
+  'Deux Plateaux','Angré','Cocody Université','Riviera 1',
+  'Riviera 2','Riviera Golf','Riviera 3','Cocody Riviera — Destination',
+];
+
+let currentIdx = 7, followMode = true, showRouteOverlay = false;
+let routePoly = null, trailPoly = null, motoMark = null, map = null;
+let secSince = 0;
+
+function createMotoIcon(h) {
+  return L.divIcon({
+    className:'',
+    html:`<div style="width:34px;height:34px;background:#FFD600;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 0 5px rgba(255,214,0,0.2),0 0 0 10px rgba(255,214,0,0.08);border:2px solid rgba(0,0,0,0.25);">🏍️</div>`,
+    iconSize:[34,34], iconAnchor:[17,17]
+  });
+}
+function createDestIcon() {
+  return L.divIcon({
+    className:'',
+    html:`<div style="width:26px;height:26px;background:#22C55E;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 0 5px rgba(34,197,94,0.2);border:2px solid rgba(0,0,0,0.2);">📍</div>`,
+    iconSize:[26,26], iconAnchor:[13,13]
+  });
+}
+
+function initMap() {
+  map = L.map('map', { center: routePoints[currentIdx], zoom: 14, zoomControl: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OSM', maxZoom:18 }).addTo(map);
+
+  routePoly = L.polyline(routePoints, { color:'rgba(255,214,0,0.2)', weight:4, dashArray:'8,6' }).addTo(map);
+  trailPoly = L.polyline(routePoints.slice(0, currentIdx+1), { color:'#FFD600', weight:4, opacity:0.85 }).addTo(map);
+  motoMark = L.marker(routePoints[currentIdx], { icon: createMotoIcon(45) }).addTo(map)
+    .bindPopup('<strong style="color:#FFD600">CI-452-AK</strong><br>Kodjo D. · En course<br><small>Plateau → Cocody Riviera</small>');
+  L.marker(routePoints[routePoints.length-1], { icon: createDestIcon() }).addTo(map)
+    .bindPopup('<strong style="color:#22C55E">Destination</strong><br>Cocody Riviera 3');
+
+  updateTrackSidebar(currentIdx);
+  startGPSSim();
+
+  setInterval(() => {
+    secSince++;
+    document.getElementById('posTime').textContent = `Mis à jour il y a ${secSince} sec.`;
+  }, 1000);
+}
+
+function startGPSSim() {
+  setInterval(() => {
+    secSince = 0;
+    if (currentIdx < routePoints.length - 1) {
+      currentIdx++;
+    } else {
+      currentIdx = 0;
+      trailPoly.setLatLngs([routePoints[0]]);
+    }
+    const pos = routePoints[currentIdx];
+    motoMark.setLatLng(pos);
+    trailPoly.setLatLngs(routePoints.slice(0, currentIdx+1));
+    if (followMode) map.panTo(pos, { animate:true, duration:0.8 });
+    updateTrackSidebar(currentIdx);
+    showToast('📡 GPS', zoneNames[currentIdx]);
+    // ETA
+    const rem = routePoints.length - 1 - currentIdx;
+    const eta = new Date(Date.now() + rem * 90000);
+    document.getElementById('etaDisplay').textContent = eta.getHours()+':'+String(eta.getMinutes()).padStart(2,'0');
+    document.getElementById('etaSide').textContent = rem + ' min';
+    document.getElementById('distRest').textContent = (rem * 0.28).toFixed(1) + ' km';
+  }, 4000);
+}
+
+function updateTrackSidebar(idx) {
+  const pos = routePoints[idx];
+  const spd = 18 + Math.floor(Math.random() * 42);
+  document.getElementById('speedNum').textContent = spd;
+  document.getElementById('speedBar').style.width = (spd/80*100)+'%';
+  document.getElementById('coordsDisplay').textContent = Math.abs(pos[0]).toFixed(4)+'°N, '+Math.abs(pos[1]).toFixed(4)+'°W';
+  document.getElementById('streetAddress').textContent = zoneNames[idx];
+  document.getElementById('distVal').textContent = (idx*0.42+Math.random()*0.1).toFixed(1)+' km';
+}
+
+function toggleFollow() {
+  followMode = !followMode;
+  document.getElementById('btnFollow').classList.toggle('active', followMode);
+  if (followMode && map) map.panTo(routePoints[currentIdx], { animate:true });
+}
+
+function toggleRoute() {
+  showRouteOverlay = !showRouteOverlay;
+  document.getElementById('btnRoute').classList.toggle('active', showRouteOverlay);
+  if (routePoly) routePoly.setStyle({ opacity: showRouteOverlay ? 1 : 0 });
+}
+</script>
+</body>
+</html>
